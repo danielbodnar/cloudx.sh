@@ -2,15 +2,19 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cloudx-sh",
   "main": "src/index.ts",
-  "compatibility_date": "2024-12-01",
+  "compatibility_date": "2025-05-06",
   "compatibility_flags": ["nodejs_compat"],
+
+  "observability": {
+    "enabled": true
+  },
 
   // Cloudflare Sandbox container configuration
   "containers": [
     {
-      "class_name": "DevEnvironment",
+      "class_name": "Sandbox",
       "image": "./Dockerfile",
-      "instance_type": "standard",
+      "instance_type": "basic",
       "max_instances": 10
     }
   ],
@@ -19,8 +23,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "DEV_ENVIRONMENT",
-        "class_name": "DevEnvironment"
+        "name": "SANDBOX",
+        "class_name": "Sandbox"
       }
     ]
   },
@@ -29,16 +33,11 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["DevEnvironment"]
+      "new_sqlite_classes": ["Sandbox"]
     }
   ],
 
-  // Workers AI binding
-  "ai": {
-    "binding": "AI"
-  },
-
-  // KV namespace for caching
+  // KV namespace for caching session data
   "kv_namespaces": [
     {
       "binding": "CACHE",
@@ -49,19 +48,12 @@
 
   // Environment variables
   "vars": {
-    "ENVIRONMENT": "production",
-    "MAX_SESSION_LIFETIME_MINUTES": "60",
-    "GITHUB_API_BASE": "https://api.github.com"
+    "ENVIRONMENT": "production"
   },
 
   // Development settings
   "dev": {
     "port": 8787,
     "local_protocol": "http"
-  },
-
-  // Observability
-  "observability": {
-    "enabled": true
   }
 }

@@ -1,51 +1,35 @@
 # cloudx.sh
 
-Launch any GitHub repository as a development environment instantly using Cloudflare Sandbox and Workers AI.
+Launch any GitHub repository as an AI-powered development environment instantly using Cloudflare Sandbox and OpenCode with Claude Opus 4.5.
 
 ## Features
 
 - **Instant Environments**: Visit `https://cloudx.sh/github.com/owner/repo` to launch any public repository
-- **AI-Powered Detection**: Uses Workers AI to automatically detect project type and configuration
-- **Multi-Runtime Support**: Node.js, Python, Rust, Go, Ruby, PHP, and more
-- **Live Preview**: Get a public URL to your running application instantly
+- **Claude Opus 4.5**: Powered by Anthropic's most capable model for intelligent code assistance
+- **OpenCode Integration**: Full-featured AI development environment with terminal, editor, and chat
+- **Live Preview**: Get a public URL to your running development environment instantly
 - **Edge-Powered**: Built on Cloudflare's global network for fast, secure execution
 
 ## How It Works
 
-1. **URL Interception**: When you visit `/github.com/owner/repo`, the worker intercepts the request
+1. **URL Interception**: Visit `/github.com/owner/repo` to trigger environment creation
 2. **Repository Cloning**: The repo is cloned into a Cloudflare Sandbox container
-3. **AI Analysis**: Workers AI analyzes the repository structure to determine:
-   - Project type (Node.js, Python, etc.)
-   - Package manager (npm, yarn, pnpm, bun, pip, cargo, etc.)
-   - Build and start commands
-   - Default port
-4. **Environment Setup**: Dependencies are installed and the project is built
-5. **Application Launch**: The application is started and a preview URL is generated
-
-## Supported Project Types
-
-| Type | Detection | Package Managers |
-|------|-----------|------------------|
-| Node.js | `package.json` | npm, yarn, pnpm, bun |
-| Python | `requirements.txt`, `pyproject.toml` | pip, poetry, pdm, uv |
-| Rust | `Cargo.toml` | cargo |
-| Go | `go.mod` | go mod |
-| Ruby | `Gemfile` | bundler |
-| PHP | `composer.json` | composer |
+3. **OpenCode Launch**: OpenCode server starts with Claude Opus 4.5 as the AI backend
+4. **Live Access**: Get a URL to access the full OpenCode web IDE with your repository
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
 │   User Request  │────▶│  Cloudflare      │────▶│  Cloudflare     │
-│                 │     │  Worker          │     │  Sandbox        │
+│   /github.com/  │     │  Worker          │     │  Sandbox        │
 └─────────────────┘     └──────────────────┘     └─────────────────┘
-                               │                        │
-                               ▼                        ▼
-                        ┌──────────────────┐     ┌─────────────────┐
-                        │  Workers AI      │     │  Container      │
-                        │  (Analysis)      │     │  (Execution)    │
-                        └──────────────────┘     └─────────────────┘
+                                                        │
+                                                        ▼
+                                                 ┌─────────────────┐
+                                                 │   OpenCode      │
+                                                 │   + Claude 4.5  │
+                                                 └─────────────────┘
 ```
 
 ## Getting Started
@@ -55,6 +39,7 @@ Launch any GitHub repository as a development environment instantly using Cloudf
 - [Node.js](https://nodejs.org/) 18+
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (for local development)
 - [Cloudflare account](https://dash.cloudflare.com/sign-up/workers-and-pages)
+- [Anthropic API key](https://console.anthropic.com/)
 
 ### Installation
 
@@ -72,18 +57,23 @@ npx wrangler login
 
 ### Configuration
 
-1. Create a KV namespace:
+1. Copy the environment template:
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+2. Add your Anthropic API key to `.dev.vars`:
+```
+ANTHROPIC_API_KEY=your-api-key-here
+```
+
+3. Create a KV namespace:
 ```bash
 npx wrangler kv:namespace create CACHE
 npx wrangler kv:namespace create CACHE --preview
 ```
 
-2. Update `wrangler.jsonc` with your KV namespace IDs
-
-3. (Optional) Set GitHub token for private repos:
-```bash
-npx wrangler secret put GITHUB_TOKEN
-```
+4. Update `wrangler.jsonc` with your KV namespace IDs
 
 ### Development
 
@@ -97,6 +87,9 @@ Visit `http://localhost:8787/github.com/owner/repo` to test.
 ### Deployment
 
 ```bash
+# Set the Anthropic API key as a secret
+npx wrangler secret put ANTHROPIC_API_KEY
+
 # Deploy to Cloudflare
 npm run deploy
 ```
@@ -107,44 +100,31 @@ Note: Container provisioning may take 2-3 minutes after initial deployment.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/github.com/:owner/:repo` | GET | Launch a repository environment |
-| `/session/:sessionId` | GET | View session status page |
-| `/api/status/:sessionId` | GET | Get session status JSON |
-| `/api/logs/:sessionId` | GET | Get session logs |
-| `/api/exec/:sessionId` | POST | Execute command in session |
-| `/api/stop/:sessionId` | POST | Stop a session |
-| `/api/analyze/:owner/:repo` | GET | Analyze repo without launching |
+| `/github.com/:owner/:repo` | GET | Launch OpenCode environment for a repository |
+| `/api/task` | POST | Execute a task using Claude Opus 4.5 |
+| `/api/status/:sessionId` | GET | Get session status and preview URL |
 | `/health` | GET | Health check |
 
-## Environment Variables
+### Execute Task API
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ENVIRONMENT` | Deployment environment | `production` |
-| `MAX_SESSION_LIFETIME_MINUTES` | Maximum session duration | `60` |
-| `GITHUB_API_BASE` | GitHub API base URL | `https://api.github.com` |
-
-## Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `GITHUB_TOKEN` | GitHub API token for private repos |
+```bash
+curl -X POST https://cloudx.sh/api/task \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "your-session-id",
+    "task": "Add a new endpoint to handle user authentication"
+  }'
+```
 
 ## Project Structure
 
 ```
 cloudx-sh/
 ├── src/
-│   ├── index.ts           # Main worker entry point
-│   ├── types/             # TypeScript type definitions
-│   ├── services/
-│   │   ├── github.ts      # GitHub API service
-│   │   ├── ai-analyzer.ts # Workers AI analysis
-│   │   └── session-handler.ts # Session management
-│   └── ui/
-│       └── pages.tsx      # Server-rendered UI pages
-├── Dockerfile             # Sandbox container image
+│   └── index.ts           # Main worker with OpenCode integration
+├── Dockerfile             # Sandbox container with OpenCode CLI
 ├── wrangler.jsonc         # Cloudflare configuration
+├── .dev.vars.example      # Environment template
 ├── package.json
 └── tsconfig.json
 ```
@@ -153,20 +133,24 @@ cloudx-sh/
 
 The sandbox container includes:
 
-- Node.js 22 LTS + npm, yarn, pnpm, bun
-- Python 3.12 + pip, poetry, pdm, uv
-- Rust (latest stable)
-- Go 1.22
-- Ruby + bundler
-- PHP + composer
-- Common development tools (git, vim, curl, etc.)
+- Cloudflare Sandbox base image
+- OpenCode CLI (latest)
+- Node.js + npm, pnpm, yarn, bun
+- Python 3 + pip, poetry, uv
+- TypeScript, tsx
+
+## Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude Opus 4.5 | Yes |
+| `ENVIRONMENT` | Deployment environment | No |
 
 ## Limitations
 
-- **Public repos only** (without GITHUB_TOKEN)
-- **Session timeout**: 60 minutes by default
-- **Container resources**: Varies by Sandbox instance type
-- **Large repositories**: May take longer to clone/build
+- **Public repos only** (GitHub authentication not yet implemented)
+- **Session timeout**: Sandbox sleeps after 30 minutes of inactivity
+- **API key required**: Anthropic API key needed for Claude Opus 4.5
 
 ## Contributing
 
@@ -179,5 +163,5 @@ GPL-3.0 - See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - [Cloudflare Sandbox SDK](https://developers.cloudflare.com/sandbox/)
-- [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)
-- [Hono](https://hono.dev/) - Lightweight web framework
+- [OpenCode](https://opencode.ai)
+- [Anthropic Claude](https://www.anthropic.com/claude)

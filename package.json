@@ -1,7 +1,7 @@
 {
   "name": "cloudx-sh",
   "version": "1.0.0",
-  "description": "Cloudflare Workers-based GitHub repository launcher with AI-powered environment detection and Cloudflare Containers",
+  "description": "Launch any GitHub repo as an AI-powered development environment using Cloudflare Sandbox and OpenCode with Claude Opus 4.5",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
@@ -16,9 +16,10 @@
     "cloudflare",
     "workers",
     "github",
-    "containers",
-    "ai",
-    "sandbox"
+    "sandbox",
+    "opencode",
+    "claude",
+    "ai"
   ],
   "author": "",
   "license": "GPL-3.0",
@@ -30,7 +31,6 @@
     "wrangler": "^3.91.0"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "^0.1.0",
-    "hono": "^4.6.0"
+    "@cloudflare/sandbox": "^0.1.0"
   }
 }
