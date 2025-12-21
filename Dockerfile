@@ -28,4 +28,9 @@ EXPOSE 4096
 RUN git config --global init.defaultBranch main \
     && git config --global advice.detachedHead false \
     && git config --global user.email "cloudx@cloudx.sh" \
-    && git config --global user.name "CloudX"
+    && git config --global user.name "CloudX" \
+    && git config --global credential.helper '' \
+    && git config --global core.askPass ''
+
+# Disable git credential prompts (no TTY in container)
+ENV GIT_TERMINAL_PROMPT=0
