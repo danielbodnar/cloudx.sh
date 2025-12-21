@@ -7,9 +7,8 @@ FROM docker.io/cloudflare/sandbox:0.6.7
 ENV PATH="/root/.opencode/bin:/root/.local/bin:${PATH}"
 
 # Install mise (https://mise.jdx.dev/) for tool version management
-RUN curl https://mise.run | sh \
-    && mise --version
-
+RUN curl -L https://github.com/jdx/mise/releases/download/v2025.12.0/mise-v2025.12.0-linux-x64 > /root/.local/bin/mise
+RUN chmod +x /root/.local/bin/mise
 # Install OpenCode CLI
 RUN curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh \
     && bash /tmp/install-opencode.sh \
