@@ -8,9 +8,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "typecheck": "tsc --noEmit",
-    "format": "prettier --write 'src/**/*.{ts,tsx}'",
-    "lint": "eslint 'src/**/*.{ts,tsx}'"
+    "typecheck": "bun build --no-emit src/index.ts",
+    "format": "bunx oxlint@latest --fix src/",
+    "lint": "bunx oxlint@latest src/"
   },
   "keywords": [
     "cloudflare",
@@ -26,8 +26,8 @@
   "devDependencies": {
     "@cloudflare/workers-types": "latest",
     "@types/node": "latest",
-    "@types/bun": "latest"
-    "prettier": "latest",
+    "@types/bun": "latest",
+    "oxlint": "^1.34.0",
     "typescript": "latest",
     "wrangler": "latest"
   },
