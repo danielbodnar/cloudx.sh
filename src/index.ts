@@ -184,7 +184,7 @@ async function handleGitHubLaunch(
   }
 
   // Set lock with short expiration (30 seconds)
-  await env.CACHE.put(lockKey, lockValue, { expirationTtl: 30 });
+  await env.CACHE.put(lockKey, lockValue, { expirationTtl: 60 });
 
   try {
     // Double-check no session was created while we were acquiring lock
