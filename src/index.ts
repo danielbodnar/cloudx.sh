@@ -15,10 +15,36 @@ import {
 export { Sandbox };
 
 interface Env {
-  SANDBOX: DurableObjectNamespace<Sandbox>;
+  Sandbox: DurableObjectNamespace<Sandbox>;
   CACHE: KVNamespace;
   ANTHROPIC_API_KEY: string;
   ENVIRONMENT: string;
+}
+
+// Validate GitHub owner/repo names to prevent command injection
+// GitHub usernames: alphanumeric + hyphens, 1-39 chars, no consecutive hyphens, can't start/end with hyphen
+// Repo names: alphanumeric + hyphens + underscores + dots, 1-100 chars
+const GITHUB_OWNER_REGEX = /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/;
+const GITHUB_REPO_REGEX = /^[a-zA-Z0-9._-]{1,100}$/;
+
+function isValidGitHubOwner(owner: string): boolean {
+  return GITHUB_OWNER_REGEX.test(owner) && !owner.includes('--');
+}
+
+function isValidGitHubRepo(repo: string): boolean {
+  return GITHUB_REPO_REGEX.test(repo) && repo !== '.' && repo !== '..';
+}
+
+function sanitizeForShell(input: string): string {
+  // Only allow safe characters for shell commands
+  return input.replace(/[^a-zA-Z0-9._-]/g, '');
+}
+
+// Validate UUID format for session IDs
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidSessionId(sessionId: string): boolean {
+  return UUID_REGEX.test(sessionId);
 }
 
 export default {
@@ -38,12 +64,18 @@ export default {
     // API: Get sandbox status
     if (url.pathname.startsWith('/api/status/')) {
       const sessionId = url.pathname.replace('/api/status/', '');
+      if (!isValidSessionId(sessionId)) {
+        return Response.json({ error: 'Invalid session ID' }, { status: 400 });
+      }
       return handleStatus(env, sessionId);
     }
 
     // Session page - show status and redirect to OpenCode
     if (url.pathname.startsWith('/session/')) {
       const sessionId = url.pathname.replace('/session/', '');
+      if (!isValidSessionId(sessionId)) {
+        return new Response('Invalid session ID', { status: 400 });
+      }
       return handleSessionPage(env, sessionId, url.origin);
     }
 
@@ -78,43 +110,88 @@ async function handleGitHubLaunch(
 
   const owner = pathParts[1];
   const repo = pathParts[2].split('/')[0];
-  const repoFullName = `${owner}/${repo}`;
-  const repoUrl = `https://github.com/${repoFullName}.git`;
 
-  // Check for existing session
-  const cacheKey = `session:${repoFullName}`;
-  const existingSessionId = await env.CACHE.get(cacheKey);
-
-  if (existingSessionId) {
-    const sessionUrl = `${url.origin}/session/${existingSessionId}`;
-    return Response.redirect(sessionUrl, 302);
+  // Validate owner and repo to prevent command injection
+  if (!isValidGitHubOwner(owner)) {
+    return Response.json({ error: 'Invalid GitHub owner name' }, { status: 400 });
+  }
+  if (!isValidGitHubRepo(repo)) {
+    return Response.json({ error: 'Invalid GitHub repository name' }, { status: 400 });
   }
 
-  // Create new session
-  const sessionId = crypto.randomUUID();
+  // Sanitize for use in shell commands (extra safety layer)
+  const safeOwner = sanitizeForShell(owner);
+  const safeRepo = sanitizeForShell(repo);
+  const repoFullName = `${safeOwner}/${safeRepo}`;
+  const repoUrl = `https://github.com/${repoFullName}.git`;
 
-  // Get sandbox
-  const sandbox = getSandbox(env.SANDBOX, sessionId);
+  const cacheKey = `session:${repoFullName}`;
+  const lockKey = `lock:${repoFullName}`;
 
-  // Store session mapping
-  await env.CACHE.put(cacheKey, sessionId, { expirationTtl: 7200 });
-  await env.CACHE.put(
-    `info:${sessionId}`,
-    JSON.stringify({
-      id: sessionId,
-      repo: repoFullName,
-      repoUrl,
-      createdAt: Date.now(),
-      status: 'initializing',
-    }),
-    { expirationTtl: 7200 }
-  );
+  // Check for existing session first
+  const existingSessionId = await env.CACHE.get(cacheKey);
+  if (existingSessionId) {
+    return Response.redirect(`${url.origin}/session/${existingSessionId}`, 302);
+  }
 
-  // Initialize sandbox in background
-  ctx.waitUntil(initializeSandbox(env, sandbox, sessionId, repoFullName, repoUrl));
+  // Try to acquire a lock to prevent race conditions
+  // Use a short TTL lock that expires if the process fails
+  const lockValue = crypto.randomUUID();
+  const existingLock = await env.CACHE.get(lockKey);
 
-  // Redirect to session page
-  return Response.redirect(`${url.origin}/session/${sessionId}`, 302);
+  if (existingLock) {
+    // Another request is creating a session, wait and check again
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const sessionId = await env.CACHE.get(cacheKey);
+    if (sessionId) {
+      return Response.redirect(`${url.origin}/session/${sessionId}`, 302);
+    }
+    // If still no session, return error to avoid infinite loop
+    return Response.json({ error: 'Session creation in progress, please retry' }, { status: 503 });
+  }
+
+  // Set lock with short expiration (30 seconds)
+  await env.CACHE.put(lockKey, lockValue, { expirationTtl: 30 });
+
+  try {
+    // Double-check no session was created while we were acquiring lock
+    const recheckSession = await env.CACHE.get(cacheKey);
+    if (recheckSession) {
+      await env.CACHE.delete(lockKey);
+      return Response.redirect(`${url.origin}/session/${recheckSession}`, 302);
+    }
+
+    // Create new session
+    const sessionId = crypto.randomUUID();
+    const sandbox = getSandbox(env.Sandbox, sessionId);
+
+    // Store session mapping
+    await env.CACHE.put(cacheKey, sessionId, { expirationTtl: 7200 });
+    await env.CACHE.put(
+      `info:${sessionId}`,
+      JSON.stringify({
+        id: sessionId,
+        repo: repoFullName,
+        repoUrl,
+        createdAt: Date.now(),
+        status: 'initializing',
+      }),
+      { expirationTtl: 7200 }
+    );
+
+    // Release lock
+    await env.CACHE.delete(lockKey);
+
+    // Initialize sandbox in background
+    ctx.waitUntil(initializeSandbox(env, sandbox, sessionId, repoFullName, repoUrl));
+
+    // Redirect to session page
+    return Response.redirect(`${url.origin}/session/${sessionId}`, 302);
+  } catch (error) {
+    // Release lock on error
+    await env.CACHE.delete(lockKey);
+    throw error;
+  }
 }
 
 async function initializeSandbox(
@@ -128,15 +205,11 @@ async function initializeSandbox(
     // Update status
     await updateSessionStatus(env, sessionId, 'cloning');
 
-    // Clone the repository
-    const cloneResult = await sandbox.exec(
-      `cd /home/user && git clone --depth 1 ${repoUrl} repo`,
-      { timeout: 120000 }
-    );
-
-    if (!cloneResult.success) {
-      throw new Error(`Clone failed: ${cloneResult.stderr}`);
-    }
+    // Clone the repository using the SDK's gitCheckout method (safer than shell exec)
+    await sandbox.gitCheckout(repoUrl, {
+      targetDir: '/home/user/repo',
+      depth: 1,
+    });
 
     await updateSessionStatus(env, sessionId, 'starting');
 
