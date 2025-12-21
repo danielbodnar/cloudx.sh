@@ -52,7 +52,8 @@ async function isRepoPublic(owner: string, repo: string): Promise<{ accessible: 
   try {
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
       headers: {
-        'Accept': 'application/vnd.github.v3+json',
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'cloudx.sh',
       },
     });
