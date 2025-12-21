@@ -6,13 +6,32 @@
   "compatibility_date": "2025-11-17",
   "compatibility_flags": ["nodejs_compat"],
 
+  // Enhanced observability with logs and traces
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    },
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1
+    }
   },
 
   "placement": {
     "mode": "smart"
   },
+
+  // Custom domains
+  "routes": [
+    { "pattern": "cloudx.sh", "custom_domain": true },
+    { "pattern": "vmspawn.sh", "custom_domain": true },
+    { "pattern": "vmspawn.dev", "custom_domain": true },
+    { "pattern": "nspawn.sh", "custom_domain": true },
+    { "pattern": "nspawn.dev", "custom_domain": true }
+  ],
 
   "containers": [
     {
