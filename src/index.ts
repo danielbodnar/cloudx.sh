@@ -137,17 +137,49 @@ async function handleGitHubLaunch(
   // Try to acquire a lock to prevent race conditions
   // Use a short TTL lock that expires if the process fails
   const lockValue = crypto.randomUUID();
-  const existingLock = await env.CACHE.get(lockKey);
+  let existingLock = await env.CACHE.get(lockKey);
 
   if (existingLock) {
-    // Another request is creating a session, wait and check again
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    const sessionId = await env.CACHE.get(cacheKey);
-    if (sessionId) {
-      return Response.redirect(`${url.origin}/session/${sessionId}`, 302);
+    // Another request is creating a session; wait (with timeout) and check again
+    const maxWaitMs = 5000;
+    const pollIntervalMs = 500;
+    const start = Date.now();
+    let timedOut = false;
+
+    while (true) {
+      // Check if we've waited too long
+      if (Date.now() - start >= maxWaitMs) {
+        timedOut = true;
+        break;
+      }
+
+      // Wait before re-checking
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+
+      // If a session has been created, redirect to it
+      const sessionId = await env.CACHE.get(cacheKey);
+      if (sessionId) {
+        return Response.redirect(`${url.origin}/session/${sessionId}`, 302);
+      }
+
+      // Check if the lock is still present; if not, we can try to acquire it
+      existingLock = await env.CACHE.get(lockKey);
+      if (!existingLock) {
+        break;
+      }
     }
-    // If still no session, return error to avoid infinite loop
-    return Response.json({ error: 'Session creation in progress, please retry' }, { status: 503 });
+
+    // If we timed out and there's still no session, return an error
+    if (timedOut) {
+      const finalSessionId = await env.CACHE.get(cacheKey);
+      if (finalSessionId) {
+        return Response.redirect(`${url.origin}/session/${finalSessionId}`, 302);
+      }
+      return Response.json(
+        { error: 'Session creation in progress, please retry' },
+        { status: 503 }
+      );
+    }
   }
 
   // Set lock with short expiration (30 seconds)
