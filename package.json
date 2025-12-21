@@ -24,13 +24,14 @@
   "author": "",
   "license": "GPL-3.0",
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241205.0",
-    "@types/node": "^20.10.0",
-    "prettier": "^3.1.0",
-    "typescript": "^5.3.0",
-    "wrangler": "^4.56.0"
+    "@cloudflare/workers-types": "latest",
+    "@types/node": "latest",
+    "@types/bun": "latest"
+    "prettier": "latest",
+    "typescript": "latest",
+    "wrangler": "latest"
   },
   "dependencies": {
-    "@cloudflare/sandbox": "^0.1.0"
+    "@cloudflare/sandbox": "^0.6.7"
   }
 }
