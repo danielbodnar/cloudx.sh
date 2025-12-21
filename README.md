@@ -4,7 +4,7 @@ Launch any GitHub repository as a development environment instantly using Cloudf
 
 ## Features
 
-- **Instant Environments**: Visit `https://cloud.sh/github.com/owner/repo` to launch any public repository
+- **Instant Environments**: Visit `https://cloudx.sh/github.com/owner/repo` to launch any public repository
 - **AI-Powered Detection**: Uses Workers AI to automatically detect project type and configuration
 - **Multi-Runtime Support**: Node.js, Python, Rust, Go, Ruby, PHP, and more
 - **Live Preview**: Get a public URL to your running application instantly

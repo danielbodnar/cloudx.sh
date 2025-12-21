@@ -1,7 +1,7 @@
 /**
  * cloudx.sh - GitHub Repository Launcher
  *
- * Intercepts requests to cloud.sh/github.com/[org]/[repo] and launches
+ * Intercepts requests to cloudx.sh/github.com/[org]/[repo] and launches
  * development environments using Cloudflare Sandbox and Workers AI
  */
 
