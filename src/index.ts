@@ -9,9 +9,7 @@ import {
   Sandbox,
   getSandbox,
   proxyToSandbox,
-  type SandboxOptions,
 } from '@cloudflare/sandbox';
-import { opencode, type Config } from '@cloudflare/sandbox/opencode';
 
 // Re-export Sandbox for Durable Object
 export { Sandbox };
@@ -21,34 +19,6 @@ interface Env {
   CACHE: KVNamespace;
   ANTHROPIC_API_KEY: string;
   ENVIRONMENT: string;
-}
-
-// Configure OpenCode to use Claude Opus 4.5
-function getConfig(env: Env): Config {
-  return {
-    provider: {
-      anthropic: {
-        apiKey: env.ANTHROPIC_API_KEY,
-      },
-    },
-    // Use Claude Opus 4.5 as the model
-    model: {
-      provider: 'anthropic',
-      model: 'claude-opus-4-5-20250514',
-    },
-  };
-}
-
-// Sandbox options for GitHub repo environments
-function getSandboxOptions(repoUrl?: string): SandboxOptions {
-  return {
-    // Keep sandbox alive for 30 minutes of inactivity
-    sleepAfter: 30 * 60 * 1000,
-    // Start OpenCode server on container start
-    startCommand: repoUrl
-      ? `cd /home/user && git clone --depth 1 ${repoUrl} repo && cd repo && opencode serve --port 4096`
-      : 'opencode serve --port 4096',
-  };
 }
 
 export default {
@@ -65,15 +35,16 @@ export default {
       return handleGitHubLaunch(request, env, ctx, url);
     }
 
-    // API: Execute a task in an existing sandbox
-    if (url.pathname === '/api/task' && request.method === 'POST') {
-      return handleTask(request, env);
-    }
-
     // API: Get sandbox status
     if (url.pathname.startsWith('/api/status/')) {
       const sessionId = url.pathname.replace('/api/status/', '');
       return handleStatus(env, sessionId);
+    }
+
+    // Session page - show status and redirect to OpenCode
+    if (url.pathname.startsWith('/session/')) {
+      const sessionId = url.pathname.replace('/session/', '');
+      return handleSessionPage(env, sessionId, url.origin);
     }
 
     // Proxy OpenCode UI requests to sandbox
@@ -106,7 +77,7 @@ async function handleGitHubLaunch(
   }
 
   const owner = pathParts[1];
-  const repo = pathParts[2].split('/')[0]; // Handle extra path segments
+  const repo = pathParts[2].split('/')[0];
   const repoFullName = `${owner}/${repo}`;
   const repoUrl = `https://github.com/${repoFullName}.git`;
 
@@ -115,7 +86,6 @@ async function handleGitHubLaunch(
   const existingSessionId = await env.CACHE.get(cacheKey);
 
   if (existingSessionId) {
-    // Return existing session
     const sessionUrl = `${url.origin}/session/${existingSessionId}`;
     return Response.redirect(sessionUrl, 302);
   }
@@ -123,8 +93,8 @@ async function handleGitHubLaunch(
   // Create new session
   const sessionId = crypto.randomUUID();
 
-  // Get sandbox with repo-specific options
-  const sandbox = getSandbox(env.SANDBOX, sessionId, getSandboxOptions(repoUrl));
+  // Get sandbox
+  const sandbox = getSandbox(env.SANDBOX, sessionId);
 
   // Store session mapping
   await env.CACHE.put(cacheKey, sessionId, { expirationTtl: 7200 });
@@ -158,16 +128,41 @@ async function initializeSandbox(
     // Update status
     await updateSessionStatus(env, sessionId, 'cloning');
 
-    // Wait for the sandbox to be ready and repo to be cloned
-    // The startCommand in getSandboxOptions handles the clone
-    await new Promise((resolve) => setTimeout(resolve, 10000));
+    // Clone the repository
+    const cloneResult = await sandbox.exec(
+      `cd /home/user && git clone --depth 1 ${repoUrl} repo`,
+      { timeout: 120000 }
+    );
 
-    // Verify clone succeeded
-    const result = await sandbox.exec('ls -la /home/user/repo', { timeout: 5000 });
-
-    if (!result.success) {
-      throw new Error('Failed to clone repository');
+    if (!cloneResult.success) {
+      throw new Error(`Clone failed: ${cloneResult.stderr}`);
     }
+
+    await updateSessionStatus(env, sessionId, 'starting');
+
+    // Write OpenCode config with Claude Opus 4.5
+    const configContent = JSON.stringify({
+      provider: {
+        anthropic: {
+          apiKey: env.ANTHROPIC_API_KEY,
+        },
+      },
+      model: {
+        provider: 'anthropic',
+        model: 'claude-opus-4-5-20250514',
+      },
+    }, null, 2);
+
+    await sandbox.writeFile('/home/user/repo/.opencode.json', configContent);
+
+    // Start OpenCode server
+    await sandbox.exec(
+      'cd /home/user/repo && nohup opencode serve --port 4096 > /tmp/opencode.log 2>&1 &',
+      { timeout: 30000 }
+    );
+
+    // Wait for server to start
+    await new Promise((resolve) => setTimeout(resolve, 5000));
 
     // Update status to running
     await updateSessionStatus(env, sessionId, 'running');
@@ -175,11 +170,7 @@ async function initializeSandbox(
     // Expose OpenCode port
     try {
       const portInfo = await sandbox.exposePort(4096);
-      await env.CACHE.put(
-        `preview:${sessionId}`,
-        portInfo.url,
-        { expirationTtl: 7200 }
-      );
+      await env.CACHE.put(`preview:${sessionId}`, portInfo.url, { expirationTtl: 7200 });
     } catch (e) {
       console.error('Failed to expose port:', e);
     }
@@ -212,64 +203,6 @@ async function updateSessionStatus(
   }
 }
 
-async function handleTask(request: Request, env: Env): Promise<Response> {
-  try {
-    const body = await request.json() as {
-      sessionId?: string;
-      repo?: string;
-      task: string;
-    };
-
-    if (!body.task) {
-      return Response.json({ error: 'Task is required' }, { status: 400 });
-    }
-
-    // Get or create session
-    let sessionId = body.sessionId;
-    if (!sessionId && body.repo) {
-      sessionId = await env.CACHE.get(`session:${body.repo}`);
-    }
-
-    if (!sessionId) {
-      return Response.json({ error: 'Session not found' }, { status: 404 });
-    }
-
-    // Get sandbox
-    const sandbox = getSandbox(env.SANDBOX, sessionId);
-
-    // Create OpenCode client with Claude Opus 4.5
-    const client = opencode(sandbox, getConfig(env));
-
-    // Create session and send task
-    const session = await client.session.create();
-
-    const response = await session.send({
-      message: body.task,
-    });
-
-    // Extract text from response
-    const textParts = response.message.content
-      .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-      .map((part) => part.text);
-
-    return Response.json({
-      success: true,
-      sessionId,
-      response: textParts.join('\n'),
-      usage: response.usage,
-    });
-  } catch (error) {
-    console.error('Task execution failed:', error);
-    return Response.json(
-      {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : undefined,
-      },
-      { status: 500 }
-    );
-  }
-}
-
 async function handleStatus(env: Env, sessionId: string): Promise<Response> {
   const info = await env.CACHE.get(`info:${sessionId}`, 'json');
   const previewUrl = await env.CACHE.get(`preview:${sessionId}`);
@@ -282,6 +215,150 @@ async function handleStatus(env: Env, sessionId: string): Promise<Response> {
     ...info,
     previewUrl,
   });
+}
+
+async function handleSessionPage(env: Env, sessionId: string, origin: string): Promise<Response> {
+  const info = await env.CACHE.get(`info:${sessionId}`, 'json') as Record<string, unknown> | null;
+  const previewUrl = await env.CACHE.get(`preview:${sessionId}`);
+
+  if (!info) {
+    return new Response('Session not found', { status: 404 });
+  }
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${info.repo} - cloudx.sh</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0a0a0a;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .container { max-width: 600px; text-align: center; }
+    h1 { font-size: 2rem; margin-bottom: 1rem; color: #f97316; }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: #1a1a1a;
+      border-radius: 2rem;
+      margin-bottom: 2rem;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    .status-dot.initializing, .status-dot.cloning, .status-dot.starting { background: #eab308; }
+    .status-dot.running { background: #22c55e; }
+    .status-dot.error { background: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .preview-link {
+      display: inline-block;
+      padding: 1rem 2rem;
+      background: #f97316;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+    .preview-link:hover { background: #fb923c; }
+    .preview-link.disabled {
+      background: #333;
+      pointer-events: none;
+    }
+    .info { color: #888; margin-top: 2rem; font-size: 0.875rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>${info.repo}</h1>
+    <div class="status">
+      <div class="status-dot ${info.status}"></div>
+      <span id="status-text">${formatStatus(info.status as string)}</span>
+    </div>
+
+    ${previewUrl
+      ? `<a href="${previewUrl}" target="_blank" class="preview-link">Open in OpenCode</a>`
+      : `<a class="preview-link disabled">Starting OpenCode...</a>`
+    }
+
+    <p class="info">
+      Session ID: ${sessionId.slice(0, 8)}...<br>
+      Powered by Claude Opus 4.5
+    </p>
+  </div>
+
+  <script>
+    const sessionId = '${sessionId}';
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status/' + sessionId);
+        const data = await res.json();
+        document.getElementById('status-text').textContent = formatStatus(data.status);
+        document.querySelector('.status-dot').className = 'status-dot ' + data.status;
+
+        if (data.previewUrl && data.status === 'running') {
+          const link = document.querySelector('.preview-link');
+          link.href = data.previewUrl;
+          link.textContent = 'Open in OpenCode';
+          link.classList.remove('disabled');
+        }
+
+        if (data.status !== 'running' && data.status !== 'error') {
+          setTimeout(checkStatus, 2000);
+        }
+      } catch (e) {
+        console.error('Status check failed:', e);
+        setTimeout(checkStatus, 3000);
+      }
+    }
+
+    function formatStatus(status) {
+      const map = {
+        initializing: 'Initializing...',
+        cloning: 'Cloning repository...',
+        starting: 'Starting OpenCode...',
+        running: 'Running',
+        error: 'Error'
+      };
+      return map[status] || status;
+    }
+
+    if ('${info.status}' !== 'running') {
+      setTimeout(checkStatus, 2000);
+    }
+  </script>
+</body>
+</html>`;
+
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html' },
+  });
+}
+
+function formatStatus(status: string): string {
+  const map: Record<string, string> = {
+    initializing: 'Initializing...',
+    cloning: 'Cloning repository...',
+    starting: 'Starting OpenCode...',
+    running: 'Running',
+    error: 'Error',
+  };
+  return map[status] || status;
 }
 
 function renderHomePage(): string {
