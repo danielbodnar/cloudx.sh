@@ -17,7 +17,7 @@
   "containers": [
     {
       "class_name": "Sandbox",
-      "image": "docker.io/cloudflare/sandbox:0.1.4",
+      "image": "./Dockerfile",
       "max_instances": 10
     }
   ],
