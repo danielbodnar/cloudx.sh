@@ -1,0 +1,18 @@
+# Mise configuration for cloudx.sh
+# https://mise.jdx.dev/
+
+[tools]
+node = "22"
+bun = "latest"
+
+[tasks.lint]
+run = "bunx oxlint@latest src/"
+description = "Run oxlint on source files"
+
+[tasks.format]
+run = "bunx oxlint@latest --fix src/"
+description = "Format and fix source files with oxlint"
+
+[tasks.typecheck]
+run = "bun build --no-emit src/index.ts"
+description = "Run TypeScript type checking"

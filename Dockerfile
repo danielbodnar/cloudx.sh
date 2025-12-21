@@ -3,8 +3,12 @@
 
 FROM docker.io/cloudflare/sandbox:0.6.7
 
-# Add opencode install location to PATH before installation
-ENV PATH="/root/.opencode/bin:${PATH}"
+# Add opencode and mise install locations to PATH before installation
+ENV PATH="/root/.opencode/bin:/root/.local/bin:${PATH}"
+
+# Install mise (https://mise.jdx.dev/) for tool version management
+RUN curl https://mise.run | sh \
+    && mise --version
 
 # Install OpenCode CLI
 RUN curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh \

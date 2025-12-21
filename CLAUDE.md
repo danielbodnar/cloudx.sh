@@ -67,6 +67,7 @@ User Request → Worker → Sandbox Durable Object → Container (OpenCode + Rep
 
 2. **`Dockerfile`** - Container image definition
    - Based on `cloudflare/sandbox:latest`
+   - Includes mise for tool version management
    - Includes OpenCode CLI, Python, Node.js, Bun
    - Pre-configured Git settings
 
@@ -88,15 +89,28 @@ User Request → Worker → Sandbox Durable Object → Container (OpenCode + Rep
 ### Building & Deploying
 
 ```bash
-npm install              # Install dependencies
-npm run dev              # Start local dev server (requires Docker)
-npm run deploy           # Deploy to Cloudflare
+bun install              # Install dependencies
+bun run dev              # Start local dev server (requires Docker)
+bun run deploy           # Deploy to Cloudflare
 ```
 
 ### Code Quality
 
 ```bash
-npm run check            # TypeScript type checking
+bun run typecheck        # TypeScript type checking
+bun run lint             # Run oxlint on source files
+bun run format           # Fix and format code with oxlint
+```
+
+### Tool Version Management (mise)
+
+This project uses [mise](https://mise.jdx.dev/) for tool version management. The `.mise.toml` file defines the required tool versions and common tasks.
+
+```bash
+mise install             # Install tools defined in .mise.toml
+mise run lint            # Run linting via mise task
+mise run typecheck       # Run type checking via mise task
+mise run format          # Fix and format code via mise task
 ```
 
 ### Docker Requirements
@@ -108,8 +122,8 @@ Local development requires Docker running for the container runtime. The Dockerf
 ### Pull Request Process
 
 1. Make your changes
-2. Ensure TypeScript compiles: `npm run check`
-3. Test locally with `npm run dev` if Docker is available
+2. Ensure TypeScript compiles: `bun run typecheck`
+3. Test locally with `bun run dev` if Docker is available
 4. Commit with clear, imperative messages (see git-commit skill)
 5. Push and create PR
 6. Deploy after review

@@ -49,10 +49,10 @@ git clone https://github.com/your-org/cloudx-sh.git
 cd cloudx-sh
 
 # Install dependencies
-npm install
+bun install
 
 # Set up wrangler (Cloudflare CLI)
-npx wrangler login
+bunx wrangler login
 ```
 
 ### Configuration
@@ -69,8 +69,8 @@ ANTHROPIC_API_KEY=your-api-key-here
 
 3. Create a KV namespace:
 ```bash
-npx wrangler kv:namespace create CACHE
-npx wrangler kv:namespace create CACHE --preview
+bunx wrangler kv:namespace create CACHE
+bunx wrangler kv:namespace create CACHE --preview
 ```
 
 4. Update `wrangler.jsonc` with your KV namespace IDs
@@ -79,7 +79,7 @@ npx wrangler kv:namespace create CACHE --preview
 
 ```bash
 # Start local development server
-npm run dev
+bun run dev
 ```
 
 Visit `http://localhost:8787/github.com/owner/repo` to test.
@@ -88,10 +88,10 @@ Visit `http://localhost:8787/github.com/owner/repo` to test.
 
 ```bash
 # Set the Anthropic API key as a secret
-npx wrangler secret put ANTHROPIC_API_KEY
+bunx wrangler secret put ANTHROPIC_API_KEY
 
 # Deploy to Cloudflare
-npm run deploy
+bun run deploy
 ```
 
 Note: Container provisioning may take 2-3 minutes after initial deployment.
