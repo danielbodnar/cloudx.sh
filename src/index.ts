@@ -122,7 +122,8 @@ async function handleGitHubLaunch(
   // Sanitize for use in shell commands (extra safety layer)
   const safeOwner = sanitizeForShell(owner);
   const safeRepo = sanitizeForShell(repo);
-  const repoFullName = `${safeOwner}/${safeRepo}`;
+  // Use the original validated values as the canonical repository identifier
+  const repoFullName = `${owner}/${repo}`;
   const repoUrl = `https://github.com/${repoFullName}.git`;
 
   const cacheKey = `session:${repoFullName}`;
