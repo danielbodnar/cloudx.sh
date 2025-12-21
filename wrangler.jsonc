@@ -2,19 +2,15 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cloudx-sh",
   "main": "src/index.ts",
-  "compatibility_date": "2025-05-06",
+  "compatibility_date": "2024-12-01",
   "compatibility_flags": ["nodejs_compat"],
-
-  "observability": {
-    "enabled": true
-  },
 
   // Cloudflare Sandbox container configuration
   "containers": [
     {
-      "class_name": "Sandbox",
+      "class_name": "DevEnvironment",
       "image": "./Dockerfile",
-      "instance_type": "basic",
+      "instance_type": "standard",
       "max_instances": 10
     }
   ],
@@ -23,8 +19,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "SANDBOX",
-        "class_name": "Sandbox"
+        "name": "DEV_ENVIRONMENT",
+        "class_name": "DevEnvironment"
       }
     ]
   },
@@ -33,27 +29,42 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["Sandbox"]
+      "new_sqlite_classes": ["DevEnvironment"]
     }
   ],
 
+  // Workers AI binding
+  "ai": {
+    "binding": "AI"
+  },
+
   // KV namespace for caching session data
+  // NOTE: Replace the placeholder IDs below with your actual Cloudflare KV namespace IDs.
+  // Create a KV namespace with: wrangler kv:namespace create CACHE
+  // For preview: wrangler kv:namespace create CACHE --preview
   "kv_namespaces": [
     {
       "binding": "CACHE",
-      "id": "your-kv-namespace-id",
-      "preview_id": "your-preview-kv-namespace-id"
+      "id": "__REPLACE_WITH_YOUR_KV_NAMESPACE_ID__",
+      "preview_id": "__REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID__"
     }
   ],
 
   // Environment variables
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "MAX_SESSION_LIFETIME_MINUTES": "60",
+    "GITHUB_API_BASE": "https://api.github.com"
   },
 
   // Development settings
   "dev": {
     "port": 8787,
     "local_protocol": "http"
+  },
+
+  // Observability
+  "observability": {
+    "enabled": true
   }
 }
