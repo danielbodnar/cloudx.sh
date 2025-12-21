@@ -47,6 +47,37 @@ function isValidSessionId(sessionId: string): boolean {
   return UUID_REGEX.test(sessionId);
 }
 
+// Check if a GitHub repository is publicly accessible
+async function isRepoPublic(owner: string, repo: string): Promise<{ accessible: boolean; error?: string }> {
+  try {
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'cloudx.sh',
+      },
+    });
+
+    if (response.status === 200) {
+      const data = await response.json() as { private?: boolean };
+      if (data.private) {
+        return { accessible: false, error: 'This repository is private. Only public repositories are supported.' };
+      }
+      return { accessible: true };
+    } else if (response.status === 404) {
+      return { accessible: false, error: 'Repository not found. Please check the owner and repository name.' };
+    } else if (response.status === 403) {
+      // Rate limited - allow the clone attempt anyway
+      return { accessible: true };
+    } else {
+      return { accessible: false, error: `Failed to verify repository (HTTP ${response.status})` };
+    }
+  } catch (error) {
+    // Network error - allow the clone attempt anyway
+    console.error('Failed to check repository accessibility:', error);
+    return { accessible: true };
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -119,9 +150,12 @@ async function handleGitHubLaunch(
     return Response.json({ error: 'Invalid GitHub repository name' }, { status: 400 });
   }
 
-  // Sanitize for use in shell commands (extra safety layer)
-  const safeOwner = sanitizeForShell(owner);
-  const safeRepo = sanitizeForShell(repo);
+  // Check if repository is publicly accessible before proceeding
+  const repoCheck = await isRepoPublic(owner, repo);
+  if (!repoCheck.accessible) {
+    return Response.json({ error: repoCheck.error }, { status: 400 });
+  }
+
   // Use the original validated values as the canonical repository identifier
   const repoFullName = `${owner}/${repo}`;
   const repoUrl = `https://github.com/${repoFullName}.git`;
