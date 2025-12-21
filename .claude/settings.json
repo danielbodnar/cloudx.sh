@@ -1,0 +1,13 @@
+{
+  "enabledMcpjsonServers": ["cloudflare-docs"],
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npm run check:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(wrangler:*)",
+      "Bash(git:*)"
+    ]
+  }
+}
