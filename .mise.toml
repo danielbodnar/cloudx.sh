@@ -2,8 +2,11 @@
 # https://mise.jdx.dev/
 
 [tools]
-node = "22"
 bun = "latest"
+crane = "latest"
+gh = "latest"
+node = "latest"
+podman = "latest"
 
 [tasks.lint]
 run = "bunx oxlint@latest src/"
