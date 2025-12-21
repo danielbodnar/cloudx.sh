@@ -177,7 +177,8 @@ app.post('/api/stop/:sessionId', async (c) => {
   try {
     const sandbox = getSandbox(c.env.DEV_ENVIRONMENT, sessionId);
     // Kill common development server processes
-    // pkill uses basic regex where \| is the alternation operator
+    // NOTE: pkill -f uses basic regex (not extended) where \| is alternation
+    // In JavaScript string "\\|" becomes "\|" when sent to shell, which is correct for basic regex
     await sandbox.exec('pkill -9 -f "node\\|python\\|ruby\\|go" || true');
 
     // Update session status in cache
