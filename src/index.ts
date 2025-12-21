@@ -177,8 +177,8 @@ app.post('/api/stop/:sessionId', async (c) => {
   try {
     const sandbox = getSandbox(c.env.DEV_ENVIRONMENT, sessionId);
     // Kill common development server processes
-    // Use proper shell syntax for process matching
-    await sandbox.exec('pkill -9 -f "node|python|ruby|go" || true');
+    // pkill uses basic regex where \| is the alternation operator
+    await sandbox.exec('pkill -9 -f "node\\|python\\|ruby\\|go" || true');
 
     // Update session status in cache
     const sessionData = await c.env.CACHE.get(`session:${sessionId}`, 'json') as SessionInfo | null;
