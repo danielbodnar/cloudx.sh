@@ -15,7 +15,7 @@ import {
 export { Sandbox };
 
 interface Env {
-  Sandbox: DurableObjectNamespace<Sandbox>;
+  SANDBOX: DurableObjectNamespace<Sandbox>;
   CACHE: KVNamespace;
   ANTHROPIC_API_KEY: string;
   ENVIRONMENT: string;
@@ -163,7 +163,7 @@ async function handleGitHubLaunch(
 
     // Create new session
     const sessionId = crypto.randomUUID();
-    const sandbox = getSandbox(env.Sandbox, sessionId);
+    const sandbox = getSandbox(env.SANDBOX, sessionId);
 
     // Store session mapping
     await env.CACHE.put(cacheKey, sessionId, { expirationTtl: 7200 });
