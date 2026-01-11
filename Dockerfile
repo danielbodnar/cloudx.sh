@@ -7,9 +7,7 @@ FROM docker.io/cloudflare/sandbox:0.6.7
 ENV PATH="/root/.opencode/bin:/root/.local/bin:${PATH}"
 
 # Install mise (https://mise.jdx.dev/) for tool version management
-RUN curl https://mise.run | sh \
-    && mise --version
-
+RUN curl https://mise.run | MISE_INSTALL_PATH=/root/.local/bin/mise sh
 # Install OpenCode CLI
 RUN curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh \
     && bash /tmp/install-opencode.sh \
@@ -29,4 +27,9 @@ EXPOSE 4096
 RUN git config --global init.defaultBranch main \
     && git config --global advice.detachedHead false \
     && git config --global user.email "cloudx@cloudx.sh" \
-    && git config --global user.name "CloudX"
+    && git config --global user.name "CloudX" \
+    && git config --global credential.helper '' \
+    && git config --global core.askPass ''
+
+# Disable git credential prompts (no TTY in container)
+ENV GIT_TERMINAL_PROMPT=0
