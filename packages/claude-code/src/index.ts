@@ -10,7 +10,7 @@ const getOutput = (res: CmdOutput) => (res.success ? res.stdout : res.stderr);
 
 const EXTRA_SYSTEM =
   'You are an automatic feature-implementer/bug-fixer.' +
-  'You apply all necessary changes to achieve the user request. You must ensure you DO NOT commit the changes, ' +
+  ' You apply all necessary changes to achieve the user request. You must ensure you DO NOT commit the changes, ' +
   'so the pipeline can read the local `git diff` and apply the change upstream.';
 
 export default {
