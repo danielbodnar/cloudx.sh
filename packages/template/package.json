@@ -17,12 +17,12 @@
 	},
 	"dependencies": {
 		"@cloudflare/containers": "0.0.30",
-		"hono": "4.11.4"
+		"hono": "4.12.14"
 	},
 	"devDependencies": {
 		"@types/node": "^25.0.3",
 		"typescript": "5.9.3",
-		"wrangler": "^4.59.1"
+		"wrangler": "^4.84.1"
 	},
 	"private": true,
 	"scripts": {
