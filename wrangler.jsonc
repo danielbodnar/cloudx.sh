@@ -26,7 +26,6 @@
 
   // Custom domains
   "routes": [
-    { "pattern": "cloudx.sh", "custom_domain": true },
     { "pattern": "vmspawn.sh", "custom_domain": true },
     { "pattern": "vmspawn.dev", "custom_domain": true },
     { "pattern": "nspawn.sh", "custom_domain": true },
